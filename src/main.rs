@@ -358,31 +358,28 @@ fn try_set_config_param<R: Rng>(
 fn rmatrix_from_config<R: Rng, W: Write>(
     config: &str,
     rmatrix: &mut Rmatrix<R>,
-    err_write: &mut Option<W>,
+    err_writer: &mut Option<W>,
 ) {
+    fn write_ignore<W: Write>(err_writer: &mut Option<W>, err: String) {
+        err_writer
+            .as_mut()
+            .map(|write| write.write_all(err.as_bytes()).unwrap());
+    }
+
     let config = fs::read_to_string(config);
-    match config {
-        Ok(ref config) => {
-            let mut parser = ConfigParser::new(config);
-            while let Some(res) = parser.parse() {
-                match res {
-                    Ok(param) => {
-                        let res = try_set_config_param(rmatrix, param);
-                        if let Err(err) = res {
-                            err_write
-                                .as_mut()
-                                .map(|write| write.write_fmt(format_args!("{}\n", err)).unwrap());
-                        }
-                    }
-                    Err(err) => {
-                        err_write
-                            .as_mut()
-                            .map(|write| write.write_fmt(format_args!("{}\n", err)).unwrap());
+    if let Ok(ref config) = config {
+        let mut parser = ConfigParser::new(config);
+        while let Some(res) = parser.parse() {
+            match res {
+                Ok(param) => {
+                    let res = try_set_config_param(rmatrix, param);
+                    if let Err(err) = res {
+                        write_ignore(err_writer, err);
                     }
                 }
+                Err(err) => write_ignore(err_writer, format!("{}", err)),
             }
         }
-        _ => {}
     }
 }
 
