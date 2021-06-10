@@ -8,9 +8,11 @@ length :: 5..20
 
 # rain color, can be either a tuple or a range of tuples
 # color :: (0, 0, 0)..(0, 255, 0)
+# color :: (255, 0, 0)..(128, 0, 128)
 color :: (0, 200, 0)
 
 # the color of the last character
+# head_color :: (255, 0, 255)
 head_color :: (255, 255, 255)
 
 # the coefficient that determines the uniformity of interpolation of the color
