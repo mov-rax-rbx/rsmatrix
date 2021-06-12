@@ -58,6 +58,12 @@ utf8 :: true
 > cargo r --release
 ```
 
+### Or
+
+``` console
+> cargo install rsmatrix
+```
+
 # Dependecies
 
 * [crossterm](https://github.com/crossterm-rs/crossterm) - cross-platform terminal manipulation library.
