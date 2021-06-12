@@ -1,5 +1,5 @@
 [package]
-name = "rmatrix"
+name = "rsmatrix"
 version = "0.1.0"
 authors = ["mov-rax-rbx"]
 edition = "2018"
