@@ -1,6 +1,6 @@
-# rmatrix
+# rsmatrix
 
-[![Rust](https://github.com/mov-rax-rbx/rmatrix/actions/workflows/rust.yml/badge.svg)](https://github.com/mov-rax-rbx/rmatrix/actions/workflows/rust.yml)
+[![Rust](https://github.com/mov-rax-rbx/rsmatrix/actions/workflows/rust.yml/badge.svg)](https://github.com/mov-rax-rbx/rmatrix/actions/workflows/rust.yml)
 
 Terminal `matrix` rain.
 
