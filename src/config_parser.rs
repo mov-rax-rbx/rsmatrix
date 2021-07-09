@@ -31,12 +31,12 @@ impl fmt::Display for ConfigErr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", self.msg)?;
 
-        let current_idx = self.idx.unwrap_or(self.slurp_config.len());
+        let current_idx = self.idx.unwrap_or_else(|| self.slurp_config.len());
         let end = self.slurp_config[current_idx..]
             .char_indices()
             .find(|&(_, ch)| ch == '\n')
             .map(|(idx, _)| current_idx + idx)
-            .unwrap_or(self.slurp_config.len());
+            .unwrap_or_else(|| self.slurp_config.len());
 
         let prefix = format!("{} | ", self.line);
         write!(f, "{}", prefix)?;
@@ -51,7 +51,7 @@ impl fmt::Display for ConfigErr<'_> {
             .chars()
             .count();
         for _ in 0..len {
-            write!(f, "{}", '^')?;
+            write!(f, "^")?;
         }
         writeln!(f)?;
 
@@ -100,7 +100,7 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
         }
     }
 
-    fn to_new_line(&mut self) {
+    fn move_to_new_line(&mut self) {
         while let Some((idx, ch)) = self.iter.next() {
             if ch == '\n' {
                 self.line += 1;
@@ -212,7 +212,7 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
         let err = format!(
             "error on line: {}, column: {}. Expected `variable name`.",
             self.line,
-            idx.unwrap_or(self.slurp_config.len()) - self.line_to_idx
+            idx.unwrap_or_else(|| self.slurp_config.len()) - self.line_to_idx
         );
         Err(self.make_err(err, idx))
     }
@@ -267,7 +267,7 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
                 let err = format!(
                     "error on line: {}, column: {}. Expected `,` or `)`.",
                     self.line,
-                    idx.unwrap_or(self.slurp_config.len()) - self.line_to_idx
+                    idx.unwrap_or_else(|| self.slurp_config.len()) - self.line_to_idx
                 );
                 return Err(self.make_err(err, idx));
             }
@@ -344,14 +344,14 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
         loop {
             self.skip(char::is_whitespace);
             match self.iter.peek() {
-                Some((_, '#')) => self.to_new_line(),
+                Some((_, '#')) => self.move_to_new_line(),
                 Some(_) => {
                     let variable = self.parse_variable();
 
                     let variable_name = match variable {
                         Ok(name) => name,
                         Err(variable_parse_err) => {
-                            self.to_new_line();
+                            self.move_to_new_line();
                             return Some(Err(variable_parse_err));
                         }
                     };
@@ -359,12 +359,9 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
                     self.skip(char::is_whitespace);
                     let is_assign = self.need("::");
 
-                    match is_assign {
-                        Err(assign_parse_err) => {
-                            self.to_new_line();
-                            return Some(Err(assign_parse_err));
-                        }
-                        _ => {}
+                    if let Err(assign_parse_err) = is_assign {
+                        self.move_to_new_line();
+                        return Some(Err(assign_parse_err));
                     }
 
                     self.skip(char::is_whitespace);
@@ -374,7 +371,7 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
                             val: config_parse_val,
                         }),
                         Err(config_parse_err) => {
-                            self.to_new_line();
+                            self.move_to_new_line();
                             Err(config_parse_err)
                         }
                     });

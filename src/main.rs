@@ -19,17 +19,11 @@ use config_parser::*;
 use rmatrix::*;
 
 #[derive(Debug)]
-struct RmatrixCrosstermRender<'rm, R>
-where
-    R: Rng,
-{
-    rmatrix: &'rm mut Rmatrix<R>,
+struct RmatrixCrosstermRender<'rm> {
+    rmatrix: &'rm mut Rmatrix,
 }
 
-impl<'rm, R> RmatrixCrosstermRender<'rm, R>
-where
-    R: Rng,
-{
+impl<'rm> RmatrixCrosstermRender<'rm> {
     fn render<O>(&mut self, out: &mut O) -> crossterm::Result<()>
     where
         O: Write + QueueableCommand,
@@ -61,7 +55,7 @@ where
         for head in self.rmatrix.rains.iter() {
             let start_y = head.y.saturating_sub(head.length);
 
-            let need_y = start_y.saturating_sub(head.speed);
+            let need_y = start_y.saturating_sub(head.speed).saturating_sub(1);
             for y in need_y..start_y {
                 out.queue(cursor::MoveTo(head.x, y))?
                     .queue(style::Print(' '))?;
@@ -169,10 +163,7 @@ where
     }
 }
 
-fn try_set_config_param<R: Rng>(
-    rmatrix: &mut Rmatrix<R>,
-    param: ConfigParam,
-) -> Result<(), String> {
+fn try_set_config_param(rmatrix: &mut Rmatrix, param: ConfigParam) -> Result<(), String> {
     let (name, value) = param.split();
     match name.to_lowercase().as_str() {
         "speed" => {
@@ -189,7 +180,7 @@ fn try_set_config_param<R: Rng>(
                 _ => {}
             }
 
-            Err(format!("Speed is range of number (`1..3`)."))
+            Err("Speed is range of number (`1..3`).".to_string())
         }
         "length" => {
             match value {
@@ -205,12 +196,14 @@ fn try_set_config_param<R: Rng>(
                 _ => {}
             }
 
-            Err(format!("Length is range of number (`1..3`)."))
+            Err("Length is range of number (`1..3`).".to_string())
         }
         "color" => {
             match value {
-                ConfigVal::Range(box_v1, box_v2) => match (*box_v1, *box_v2) {
-                    (ConfigVal::Tuple(start_color), ConfigVal::Tuple(end_color)) => {
+                ConfigVal::Range(box_v1, box_v2) => {
+                    if let (ConfigVal::Tuple(start_color), ConfigVal::Tuple(end_color)) =
+                        (*box_v1, *box_v2)
+                    {
                         if let [ConfigVal::Num(s1), ConfigVal::Num(s2), ConfigVal::Num(s3)] =
                             start_color[..]
                         {
@@ -224,8 +217,7 @@ fn try_set_config_param<R: Rng>(
                             }
                         }
                     }
-                    _ => {}
-                },
+                }
                 ConfigVal::Tuple(box_v) => {
                     if let [ConfigVal::Num(c1), ConfigVal::Num(c2), ConfigVal::Num(c3)] = box_v[..]
                     {
@@ -238,9 +230,9 @@ fn try_set_config_param<R: Rng>(
                 _ => {}
             }
 
-            Err(format!(
-                "Color is range of tuple (`(0, 0, 0)..(0, 255, 0)`), tuple of number (`(0, 255, 0)`) or `nil`."
-            ))
+            Err(
+                "Color is range of tuple (`(0, 0, 0)..(0, 255, 0)`), tuple of number (`(0, 255, 0)`) or `nil`.".to_string()
+            )
         }
         "head_color" => {
             match value {
@@ -258,9 +250,7 @@ fn try_set_config_param<R: Rng>(
                 _ => {}
             }
 
-            Err(format!(
-                "Head color is tuple of number (`(255, 255, 255)`) or `nil`."
-            ))
+            Err("Head color is tuple of number (`(255, 255, 255)`) or `nil`.".to_string())
         }
         "interpolate_color_koef" => {
             match value {
@@ -275,9 +265,7 @@ fn try_set_config_param<R: Rng>(
                 _ => {}
             }
 
-            Err(format!(
-                "Interpolate color koef is number (`1.25`) or `nil`."
-            ))
+            Err("Interpolate color koef is number (`1.25`) or `nil`.".to_string())
         }
         "min_brightnes" => {
             match value {
@@ -292,78 +280,61 @@ fn try_set_config_param<R: Rng>(
                 _ => {}
             }
 
-            Err(format!(
-                "Interpolate color koef is number (`0.1`) or `nil`."
-            ))
+            Err("Interpolate color koef is number (`0.1`) or `nil`.".to_string())
         }
         "density" => {
-            match value {
-                ConfigVal::Num(v) => {
-                    rmatrix.density = v;
-                    return Ok(());
-                }
-                _ => {}
+            if let ConfigVal::Num(v) = value {
+                rmatrix.density = v;
+                return Ok(());
             }
 
-            Err(format!("Density is number (`0.7`)."))
+            Err("Density is number (`0.7`).".to_string())
         }
         "is_bold" => {
-            match value {
-                ConfigVal::Bool(b) => {
-                    rmatrix.is_bold = b;
-                    return Ok(());
-                }
-                _ => {}
+            if let ConfigVal::Bool(b) = value {
+                rmatrix.is_bold = b;
+                return Ok(());
             }
-            Err(format!("Bold is bool (`true`)."))
+
+            Err("Bold is bool (`true`).".to_string())
         }
         "is_default_rain" => {
-            match value {
-                ConfigVal::Bool(b) => {
-                    rmatrix.is_default_rain = b;
-                    return Ok(());
-                }
-                _ => {}
+            if let ConfigVal::Bool(b) = value {
+                rmatrix.is_default_rain = b;
+                return Ok(());
             }
-            Err(format!("Default rain is bool (`true`)."))
+
+            Err("Default rain is bool (`true`).".to_string())
         }
         "delay" => {
-            match value {
-                ConfigVal::Num(v) => {
-                    rmatrix.delay = time::Duration::from_millis(v as u64);
-                    return Ok(());
-                }
-                _ => {}
+            if let ConfigVal::Num(v) = value {
+                rmatrix.delay = time::Duration::from_millis(v as u64);
+                return Ok(());
             }
-            Err(format!("Delay is number (`16`)."))
+
+            Err("Delay is number (`16`).".to_string())
         }
         "utf8" => {
-            match value {
-                ConfigVal::Bool(b) => {
-                    if b {
-                        rmatrix.set_utf8();
-                    } else {
-                        rmatrix.set_ascii();
-                    }
-                    return Ok(());
+            if let ConfigVal::Bool(b) = value {
+                if b {
+                    rmatrix.set_utf8();
+                } else {
+                    rmatrix.set_ascii();
                 }
-                _ => {}
+                return Ok(());
             }
-            Err(format!("utf8 is bool (`true`)."))
+
+            Err("utf8 is bool (`true`).".to_string())
         }
         name => Err(format!("Unexpected variable name `{}`.", name)),
     }
 }
 
-fn rmatrix_from_config<R: Rng, W: Write>(
-    config: &str,
-    rmatrix: &mut Rmatrix<R>,
-    err_writer: &mut Option<W>,
-) {
+fn rmatrix_from_config<W: Write>(config: &str, rmatrix: &mut Rmatrix, err_writer: &mut Option<W>) {
     fn write_ignore<W: Write>(err_writer: &mut Option<W>, err: String) {
-        err_writer
-            .as_mut()
-            .map(|write| write.write_all(err.as_bytes()).unwrap());
+        if let Some(write) = err_writer.as_mut() {
+            write.write_all(err.as_bytes()).unwrap()
+        }
     }
 
     let config = fs::read_to_string(config);
@@ -383,8 +354,8 @@ fn rmatrix_from_config<R: Rng, W: Write>(
     }
 }
 
-const CONFIG_NAME: &'static str = "config.rm";
-const ERROR_CONFIG_NAME: &'static str = "config_error.txt";
+const CONFIG_NAME: &str = "config.rm";
+const ERROR_CONFIG_NAME: &str = "config_error.txt";
 
 fn main() -> crossterm::Result<()> {
     let mut config_error = fs::File::create(ERROR_CONFIG_NAME).ok();
@@ -446,7 +417,7 @@ fn main() -> crossterm::Result<()> {
             rmatrix
                 .lock()
                 .unwrap()
-                .to_crossterm_render()
+                .as_crossterm_render()
                 .render(&mut stdout)?;
         }
     }

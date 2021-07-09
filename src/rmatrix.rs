@@ -73,16 +73,13 @@ impl From<RColor> for (u8, u8, u8) {
 }
 
 #[derive(Debug, Clone)]
-pub struct Rmatrix<R>
-where
-    R: Rng,
-{
+pub struct Rmatrix {
     pub(crate) width: u16,
     pub(crate) height: u16,
     pub(crate) rains: Vec<Rain>,
     pub(crate) symbls: Vec<char>,
 
-    pub(crate) rng: R,
+    pub(crate) rng: StdRng,
     pub(crate) speed: Range<u16>,
     pub(crate) len: Range<u16>,
 
@@ -98,7 +95,7 @@ where
     pub(crate) delay: time::Duration,
 }
 
-impl Default for Rmatrix<StdRng> {
+impl Default for Rmatrix {
     #[inline]
     fn default() -> Self {
         let std_rng =
@@ -134,10 +131,7 @@ impl Default for Rmatrix<StdRng> {
     }
 }
 
-impl<R> Rmatrix<R>
-where
-    R: Rng,
-{
+impl Rmatrix {
     pub fn resize(&mut self, width: u16, height: u16) {
         self.width = width;
         self.height = height;
@@ -193,7 +187,7 @@ where
     pub fn add_rain(&mut self, x: u16, y: u16) {
         let length = self.rng.gen_range(self.len.clone());
         let speed = self.rng.gen_range(self.speed.clone());
-        let symbl_pos = self.rng.gen_range(0..self.symbls.len()) as u16;
+        let symbl_pos = self.rng.gen_range(0..self.symbls.len() as u16);
 
         let brightnes = if let Some(min_brightnes) = self.min_brightnes {
             Some(self.rng.gen_range(min_brightnes..=1.0))
@@ -216,7 +210,7 @@ where
         while idx < len {
             let head = &mut self.rains[idx];
 
-            if head.y.saturating_sub(head.length) > self.height {
+            if head.y.saturating_sub(head.length).saturating_sub(1) > self.height {
                 self.rains.swap_remove(idx);
                 len -= 1;
                 continue;
@@ -232,7 +226,7 @@ where
         }
     }
 
-    pub(crate) fn to_crossterm_render(&mut self) -> RmatrixCrosstermRender<R> {
+    pub(crate) fn as_crossterm_render(&mut self) -> RmatrixCrosstermRender {
         RmatrixCrosstermRender { rmatrix: self }
     }
 }
