@@ -14,6 +14,10 @@ Terminal `matrix` rain.
 ```
 # all general properties (# - comment)
 
+# file path to output parsing errors
+# error_report_file :: "config_error.txt"
+error_report_file :: nil
+
 # speed range of individual rain
 speed :: 1..3
 

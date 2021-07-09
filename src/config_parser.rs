@@ -40,16 +40,18 @@ impl fmt::Display for ConfigErr<'_> {
 
         let prefix = format!("{} | ", self.line);
         write!(f, "{}", prefix)?;
-
         writeln!(f, "{}", &self.slurp_config[self.line_to_idx..end])?;
 
         for _ in 0..prefix.len() {
             write!(f, " ")?;
         }
 
-        let len = self.slurp_config[self.line_to_idx..=current_idx]
-            .chars()
-            .count();
+        let err_line = if let Some(_) = self.idx {
+            &self.slurp_config[self.line_to_idx..=current_idx]
+        } else {
+            &self.slurp_config[self.line_to_idx..current_idx]
+        };
+        let len = err_line.chars().count();
         for _ in 0..len {
             write!(f, "^")?;
         }
@@ -77,6 +79,7 @@ pub enum ConfigVal {
     Tuple(Vec<ConfigVal>),
     Range(Box<ConfigVal>, Box<ConfigVal>),
     Bool(bool),
+    String(String),
     Nil,
 }
 
@@ -110,9 +113,9 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
         }
     }
 
-    fn skip<F: Fn(char) -> bool>(&mut self, f: F) {
+    fn skip<F: Fn(char) -> bool>(&mut self, is_f: F) {
         while let Some(&(idx, ch)) = self.iter.peek() {
-            if !f(ch) {
+            if !is_f(ch) {
                 break;
             }
 
@@ -189,7 +192,13 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
     fn parse_variable(&mut self) -> Result<String, ConfigErr<'s>> {
         if let Some(&(start, _)) = self.iter.peek() {
             while let Some(&(end, ch)) = self.iter.peek() {
-                if ch.is_whitespace() || ch == ':' || ch == '.' || ch == ',' || ch == ';' {
+                if ch.is_whitespace()
+                    || ch == ':'
+                    || ch == '.'
+                    || ch == ','
+                    || ch == ';'
+                    || ch == '\"'
+                {
                     if start == end {
                         break;
                     }
@@ -316,6 +325,17 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
             } else if (ch == 'N' && self.maybe("Nil")) || (ch == 'n' && self.maybe("nil")) {
                 self.skip_n("nil".len());
                 ConfigVal::Nil
+            } else if ch == '\"' {
+                let _ = self.iter.next();
+                let start = idx + 1;
+
+                self.skip(|ch| ch != '\"');
+                if let Some((idx, _)) = self.iter.next() {
+                    ConfigVal::String(self.slurp_config[start..idx].to_string())
+                } else {
+                    let err = format!("error on line: {}. Expected end of string \".", self.line);
+                    return Err(self.make_err(err, None));
+                }
             } else {
                 let err = format!(
                     "error on line: {}, column: {}. Expected value.",
@@ -337,7 +357,7 @@ impl<'s> ConfigParser<'s, core::str::CharIndices<'s>> {
                 "error on line: {}. Expected value but found end of line.",
                 self.line
             );
-            return Err(self.make_err(err, idx));
+            Err(self.make_err(err, idx))
         }
     }
     pub fn parse(&mut self) -> Option<Result<ConfigParam, ConfigErr>> {

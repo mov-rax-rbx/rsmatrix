@@ -163,7 +163,7 @@ impl<'rm> RmatrixCrosstermRender<'rm> {
     }
 }
 
-fn try_set_config_param(rmatrix: &mut Rmatrix, param: ConfigParam) -> Result<(), String> {
+fn try_set_config_param(rmatrix: &mut Rmatrix, param: ConfigParam, need_report: &mut Option<fs::File>) -> Result<(), String> {
     let (name, value) = param.split();
     match name.to_lowercase().as_str() {
         "speed" => {
@@ -326,41 +326,48 @@ fn try_set_config_param(rmatrix: &mut Rmatrix, param: ConfigParam) -> Result<(),
 
             Err("utf8 is bool (`true`).".to_string())
         }
+        "error_report_file" => {
+            match value {
+                ConfigVal::String(writer_name) => *need_report = fs::File::create(writer_name).ok(),
+                ConfigVal::Nil => *need_report = None,
+                _ => return Err("error_report_file is String (`config_error.txt`) or `nil`".to_string()),
+            }
+            Ok(())
+        }
         name => Err(format!("Unexpected variable name `{}`.", name)),
     }
 }
 
-fn rmatrix_from_config<W: Write>(config: &str, rmatrix: &mut Rmatrix, err_writer: &mut Option<W>) {
-    fn write_ignore<W: Write>(err_writer: &mut Option<W>, err: String) {
-        if let Some(write) = err_writer.as_mut() {
+fn rmatrix_from_config(config: &str, rmatrix: &mut Rmatrix) {
+    fn write_ignore<W: Write>(report_writer: &mut Option<W>, err: String) {
+        if let Some(write) = report_writer.as_mut() {
             write.write_all(err.as_bytes()).unwrap()
         }
     }
 
+    let mut report_writer: Option<fs::File> = None;
     let config = fs::read_to_string(config);
     if let Ok(ref config) = config {
         let mut parser = ConfigParser::new(config);
         while let Some(res) = parser.parse() {
             match res {
                 Ok(param) => {
-                    let res = try_set_config_param(rmatrix, param);
+                    let res = try_set_config_param(rmatrix, param, &mut report_writer);
                     if let Err(err) = res {
-                        write_ignore(err_writer, err);
+                        write_ignore(&mut report_writer, err);
                     }
                 }
-                Err(err) => write_ignore(err_writer, format!("{}", err)),
+                Err(err) => write_ignore(&mut report_writer, format!("{}", err)),
             }
         }
     }
 }
 
 const CONFIG_NAME: &str = "config.rm";
-const ERROR_CONFIG_NAME: &str = "config_error.txt";
 
 fn main() -> crossterm::Result<()> {
-    let mut config_error = fs::File::create(ERROR_CONFIG_NAME).ok();
     let mut rmatrix = Rmatrix::default();
-    rmatrix_from_config(CONFIG_NAME, &mut rmatrix, &mut config_error);
+    rmatrix_from_config(CONFIG_NAME, &mut rmatrix);
 
     let rmatrix = Arc::new(Mutex::new(rmatrix));
     let cloned_rmatrix = Arc::clone(&rmatrix);
@@ -369,9 +376,8 @@ fn main() -> crossterm::Result<()> {
         Watcher::new_immediate(move |result: Result<Event, Error>| {
             let event = result.unwrap();
             if event.kind == EventKind::Modify(ModifyKind::Any) {
-                let mut config_error = fs::File::create(ERROR_CONFIG_NAME).ok();
                 let mut new_rmatrix = cloned_rmatrix.lock().unwrap();
-                rmatrix_from_config(CONFIG_NAME, &mut new_rmatrix, &mut config_error);
+                rmatrix_from_config(CONFIG_NAME, &mut new_rmatrix);
             }
         })
         .unwrap();
